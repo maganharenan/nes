@@ -1,5 +1,5 @@
 build:
-	ca65 main.s -o main.o
+	ca65 main.asm -o main.o
 	ld65 main.o -o main.nes -C memory_map.cfg
 
 clean:

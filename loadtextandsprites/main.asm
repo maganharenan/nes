@@ -8,6 +8,8 @@
 ; ---- ZERO-PAGE -------------------------------------------------------------------
 .segment "ZEROPAGE"
 Buttons:    .res 1
+XPosition:  .res 1
+YPosition:  .res 1
 Frame:      .res 1              ; Reserve 1 byte to store the number of frames
 Clock60:    .res 1              ; Reserve 1 byte to store a counter that increments every second (60 frames)
 BgPointer:  .res 2              ; Ponter to the background address (Lo-byte and Hi-byte -> Little Endian)
@@ -21,12 +23,12 @@ BgPointer:  .res 2              ; Ponter to the background address (Lo-byte and 
             lda #1              ; set the latch to input mode
             sta Buttons
 
-            sta $4016
-            lda #0              ; set to output mode to send to NES
-            sta $4016
+            sta JOYPAD_1
+            lsr                 ; set to output mode to send to NES (same as setting lda to #0)
+            sta JOYPAD_1
 
 LoopButtons:
-            lda $4016
+            lda JOYPAD_1
 
             lsr
             rol Buttons
@@ -123,10 +125,16 @@ InitVariables:
             lda #0
             sta Frame
             sta Clock60
+
+            ldx #0
+            lda SpriteData, x
+            sta XPosition
+            ldx #3
+            lda SpriteData, x
+            sta YPosition
 Main:
             jsr LoadPalette
             jsr LoadBackground
-            ;jsr LoadAttributes
             jsr LoadText
             jsr LoadSprites
 
@@ -146,10 +154,51 @@ NMI:
             inc Frame
 OAMDMACopy:
             lda #$02
-            sta $4014
+            sta PPU_OAM_DMA
 
 ReadController:
             jsr ReadControllers
+
+CheckRightButton:
+            lda Buttons
+            and #BUTTON_RIGHT
+            beq CheckLeftButton
+              inc XPosition
+
+CheckLeftButton:
+            lda Buttons
+            and #BUTTON_LEFT
+            beq CheckDownButton
+              dec XPosition
+
+CheckDownButton:
+            lda Buttons
+            and #BUTTON_DOWN
+            beq CheckUpButton
+              inc YPosition
+
+CheckUpButton:
+            lda Buttons
+            and #BUTTON_UP
+            beq UpdateSpritePosition
+              dec YPosition
+
+UpdateSpritePosition:
+            lda XPosition
+            sta $0203
+            sta $020B
+            clc
+            adc #8
+            sta $0207
+            sta $020F
+
+            lda YPosition
+            sta $0200
+            sta $0204
+            adc #8
+            sta $0208
+            sta $020C
+
 LoopFrame:
             lda Frame
             cmp #60
