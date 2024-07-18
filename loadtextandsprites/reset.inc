@@ -25,7 +25,9 @@ Wait1stVBlank:
 ClearRam:
             sta $0000, x
             sta $0100, x
+            lda #$FF            ; Hide sprites
             sta $0200, x
+            lda #0
             sta $0300, x
             sta $0400, x
             sta $0500, x
