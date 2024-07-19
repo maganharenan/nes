@@ -219,6 +219,7 @@ PaletteData:
 
 BackgroundData:
 .incbin "background.nam"
+
 SpriteData:
 ; Mario:
 ;      Y   #tile  attribute    X
