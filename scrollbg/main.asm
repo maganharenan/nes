@@ -22,6 +22,7 @@ Clock60:            .res 1              ; Reserve 1 byte to store a counter that
 BgPointer:          .res 2              ; Ponter to the background address (Lo-byte and Hi-byte -> Little Endian)
 
 XScroll:            .res 1
+CurrentNametable:   .res 1
 ; ----------------------------------------------------------------------------------
 
 ; ---- CONSTANTS -------------------------------------------------------------------
@@ -141,6 +142,7 @@ InitVariables:
             sta Clock60
             sta TileOffset
             sta XScroll
+            sta CurrentNametable
 
             ldx #0
             lda SpriteData, x
@@ -171,9 +173,18 @@ LoopForever:
 
 NMI:
             inc Frame
+
 OAMDMACopy:
             lda #$02
             sta PPU_OAM_DMA
+
+SwapNametables:
+            lda XScroll
+            bne :+
+              lda CurrentNametable
+              eor #1
+              sta CurrentNametable
+            :
 
 ScrollBackground:
             inc XScroll
@@ -185,6 +196,7 @@ ScrollBackground:
 
 RefreshRendering:
             lda #%10010000
+            ora CurrentNametable
             sta PPU_CTRL
             lda #%00011110
             sta PPU_MASK
