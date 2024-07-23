@@ -73,7 +73,62 @@ LoopSprites:
 .endproc
 
 .proc DrawNewColumn
-            ;; TODO
+            lda XScroll
+            lsr
+            lsr
+            lsr
+            sta NewColumnAddress
+
+            lda CurrentNametable
+            eor #1
+            asl
+            asl
+            clc
+            adc #$20
+            sta NewColumnAddress + 1
+
+            lda Column              ; Multiply (col * 32) to compute the data offset
+            asl
+            asl
+            asl
+            asl
+            asl
+            sta SourceAddress
+
+            lda Column
+            lsr
+            lsr
+            lsr
+            sta SourceAddress + 1
+
+            lda SourceAddress
+            clc
+            adc #<BackgroundData
+            sta SourceAddress
+
+            lda SourceAddress + 1
+            adc #>BackgroundData
+            sta SourceAddress + 1
+
+            DrawColumn:
+                lda #%00000100
+                sta PPU_CTRL
+
+                lda PPU_STATUS
+                lda NewColumnAddress + 1
+                sta PPU_ADDR
+                lda NewColumnAddress
+                sta PPU_ADDR
+
+                ldx #30
+                ldy #0
+
+                DrawColumnLoop:
+                    lda (SourceAddress), y
+                    sta PPU_DATA
+                    iny
+                    dex
+                    bne DrawColumnLoop
 
             rts
 .endproc
@@ -116,9 +171,17 @@ OAMDMACopy:
 NewColumnCheck:
             lda XScroll
             and #%00000111
-            bne :+
+            bne EndColumnCheck
               jsr DrawNewColumn
-            :
+
+            Clamp128Columns:
+              lda Column
+              clc
+              adc #1
+              and #%01111111
+              sta Column
+
+            EndColumnCheck:
 
 ScrollBackground:
             inc XScroll
