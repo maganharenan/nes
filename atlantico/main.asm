@@ -273,6 +273,8 @@ InitAttributesLoop:
             sta XScroll
             jsr DrawNewAttribute
 
+            inc Column
+
 EnablePPURendering:
             lda #%10010000
             sta PPU_CTRL
