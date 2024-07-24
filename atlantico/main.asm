@@ -133,6 +133,73 @@ LoopSprites:
             rts
 .endproc
 
+.proc DrawNewAttribute
+            lda CurrentNametable
+            eor #1
+            asl
+            asl
+            clc
+            adc #$23
+            sta NewColumnAddress + 1
+
+            lda XScroll
+            lsr
+            lsr
+            lsr
+            lsr
+            lsr
+            clc
+            adc #$C0
+            sta NewColumnAddress
+
+            lda Column
+            and #%11111100
+            asl
+            sta SourceAddress
+
+            lda Column
+            lsr
+            lsr
+            lsr
+            lsr
+            lsr
+            lsr
+            lsr
+            sta SourceAddress + 1
+
+            lda SourceAddress
+            clc
+            adc #<AttributeData
+            sta SourceAddress
+
+            lda SourceAddress + 1
+            adc #>AttributeData
+            sta SourceAddress + 1
+
+            DrawAttribute:
+                bit PPU_STATUS
+                ldy #0
+
+                DrawAttributeLoop:
+                    lda NewColumnAddress + 1
+                    sta PPU_ADDR
+                    lda NewColumnAddress
+                    sta PPU_ADDR
+                    lda (SourceAddress), y
+                    sta PPU_DATA
+                    iny
+                    cpy #8
+                    beq :+
+                        lda NewColumnAddress
+                        clc
+                        adc #8
+                        sta NewColumnAddress
+                        jmp DrawAttributeLoop
+                    :
+
+            rts
+.endproc
+
 Reset: 
             INIT_NES
 
@@ -147,7 +214,64 @@ Main:
             jsr LoadPalette
             jsr LoadSprites
 
-            ;; TODO: laod all tiles from nametable0
+InitBackgroundTiles:
+            lda #1
+            sta CurrentNametable
+            lda #0
+            sta XScroll
+            sta Column
+
+InitBackgroundLoop:
+            jsr DrawNewColumn
+
+            lda XScroll
+            clc
+            adc #8
+            sta XScroll
+
+            inc Column
+
+            lda Column
+            cmp #32
+            bne InitBackgroundLoop
+
+            lda #0
+            sta CurrentNametable
+            lda #1
+            sta XScroll
+
+            jsr DrawNewColumn
+            inc Column
+
+            lda #%00000000
+            sta PPU_CTRL
+
+InitAttributes:
+            lda #1
+            sta CurrentNametable
+            lda #0
+            sta XScroll
+            sta Column
+
+InitAttributesLoop:
+            jsr DrawNewAttribute
+            lda XScroll
+            clc
+            adc #32
+            sta XScroll
+
+            lda Column
+            clc
+            adc #4
+            sta Column
+            cmp #32
+            bne InitAttributesLoop
+
+            lda #0
+            sta CurrentNametable
+            lda #1
+            sta XScroll
+            jsr DrawNewAttribute
 
 EnablePPURendering:
             lda #%10010000
@@ -182,6 +306,13 @@ NewColumnCheck:
               sta Column
 
             EndColumnCheck:
+
+NewAttributesCheck:
+            lda XScroll
+            and #%00011111
+            bne :+
+              jsr DrawNewAttribute
+            :
 
 ScrollBackground:
             inc XScroll
