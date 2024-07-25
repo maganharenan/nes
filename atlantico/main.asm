@@ -24,6 +24,8 @@ CurrentNametable:   .res 1
 Column:             .res 1
 NewColumnAddress:   .res 2
 SourceAddress:      .res 2
+
+IsDrawComplete:     .res 1      ; Indicates when VBlank is done drawing
 ; ----------------------------------------------------------------------------------
 
 ; ---- CODE ------------------------------------------------------------------------
@@ -209,6 +211,7 @@ InitVariables:
             sta Clock60
             sta CurrentNametable
             sta Column
+            sta IsDrawComplete
 
 Main:
             jsr LoadPalette
@@ -284,8 +287,19 @@ EnablePPURendering:
             lda #%00011110
             sta PPU_MASK
 
-LoopForever:
-            jmp LoopForever
+GameLoop:
+            jsr ReadControllers
+
+            lda IsDrawComplete
+
+            WaitForVblank:
+              cmp IsDrawComplete
+              beq WaitForVblank
+
+            lda #0
+            sta IsDrawComplete
+
+            jmp GameLoop
 
 NMI:
             inc Frame
@@ -367,6 +381,11 @@ SetGameClock:
               lda #0
               sta Frame
             :
+
+SetDrawComplete:
+            lda #1
+            sta IsDrawComplete
+
             rti
 
 IRQ:
