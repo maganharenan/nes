@@ -66,7 +66,7 @@ LoopSprites:
             lda SpriteData,x
             sta $0200,x
             inx
-            cpx #32
+            cpx #20
             bne LoopSprites
 
             rts
@@ -316,9 +316,29 @@ NewAttributesCheck:
               jsr DrawNewAttribute
             :
 
+SetPPUNoScroll:
+            lda #0
+            sta PPU_SCROLL
+            sta PPU_SCROLL
+
+EnablePPUSprite0:
+            lda #%10010000
+            sta PPU_CTRL
+            lda #%00011110
+            sta PPU_MASK
+
+WaitForNoSprite0:
+            lda PPU_STATUS
+            and #%01000000
+            bne WaitForNoSprite0
+
+WaitForSprite0:
+            lda PPU_STATUS
+            and #%01000000
+            beq WaitForSprite0
+
 ScrollBackground:
             inc XScroll
-
             lda XScroll
             bne :+
               lda CurrentNametable
@@ -528,10 +548,12 @@ AttributeData:
 
 SpriteData:
 ;      Y   tile#  attributes   X
-.byte $A6,  $60,  %00000000,  $70 ; $200   _______________
-.byte $A6,  $61,  %00000000,  $78 ; $204   \  o o o o o  /   <-- Ship (4 tiles)
-.byte $A6,  $62,  %00000000,  $80 ; $208    \___________/
-.byte $A6,  $63,  %00000000,  $88 ; $20C
+.byte $27,  $70,  %00100001,  $06 ;   [emoty sprite]   <- Sprite 0 - Used to split scrollable area
+;      Y   tile#  attributes   X
+.byte $A6,  $60,  %00000000,  $70 ;   _______________
+.byte $A6,  $61,  %00000000,  $78 ;   \  o o o o o  /   <-- Ship (4 tiles)
+.byte $A6,  $62,  %00000000,  $80 ;    \___________/
+.byte $A6,  $63,  %00000000,  $88 ; 
 ; ----------------------------------------------------------------------------------
 
 .segment "CHARS"
