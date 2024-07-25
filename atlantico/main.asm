@@ -7,6 +7,9 @@
 
 ; ---- ZERO-PAGE -------------------------------------------------------------------
 .segment "ZEROPAGE"
+CountGameLoop:      .res 1
+CountVBlank:        .res 1
+
 Buttons:            .res 1
 
 XPosition:          .res 2
@@ -212,6 +215,8 @@ InitVariables:
             sta CurrentNametable
             sta Column
             sta IsDrawComplete
+            sta CountGameLoop
+            sta CountVBlank
 
 Main:
             jsr LoadPalette
@@ -299,15 +304,14 @@ GameLoop:
             lda #0
             sta IsDrawComplete
 
+            inc CountGameLoop
+
             jmp GameLoop
 
 NMI:
-            pha     ; Push A to the stack
-            txa     ; Copy X to A
-            pha     ; Push X to the stack
-            tya     ; Copy Y to A
-            pha     ; Push Y to the stack
-            php     ; Push Processor status flags to the stack
+            PUSH_REGISTERS
+
+            inc CountVBlank
 
             inc Frame
 
@@ -393,12 +397,7 @@ SetDrawComplete:
             lda #1
             sta IsDrawComplete
 
-            plp     ; Restore status flags from the stack
-            pla     ; Restore the old value of Y from the stack
-            tay     ; Transfer A to Y
-            pla     ; Restore the old value of X from the stack
-            tax     
-            pla     ; Restore the old value of A from the stack
+            PULL_REGISTERS
 
             rti
 
