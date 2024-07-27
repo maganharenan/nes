@@ -264,20 +264,23 @@ EndRoutine:
 
             jmp NextActor
         :
-        ; cmp #ActorType::MISSILE
-        ; bne :+
-        ;     ;; ---- TODO ------------
-        ;     ;; Render player here
-        ;     ;; ----------------------
-        ;     jmp NextActor
-        ; :
-        ; cmp #ActorType::SUBMARINE
-        ; bne :+
-        ;     ;; ---- TODO ------------
-        ;     ;; Render player here
-        ;     ;; ----------------------
-        ;     jmp NextActor
-        ; :
+        cmp #ActorType::MISSILE
+        bne :+
+            lda ActorsArray+Actor::XPosition, x
+            sta ParamXPos
+            lda ActorsArray+Actor::YPosition, x
+            sta ParamYPos
+            lda #$50
+            sta ParamTileNumber
+            lda #%00000000
+            sta ParamAttributes
+            lda #1
+            sta ParamNumTiles
+
+            jsr DrawSprite
+
+            jmp NextActor
+        :
         cmp #ActorType::SPRITE0
         bne :+
             lda ActorsArray+Actor::XPosition, x
