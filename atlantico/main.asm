@@ -3,12 +3,14 @@
 .include    "header.inc"
 .include    "reset.inc"
 .include    "utils.inc"
+.include    "actor.inc"
 ; ----------------------------------------------------------------------------------
 
 ; ---- ZERO-PAGE -------------------------------------------------------------------
 .segment "ZEROPAGE"
-CountGameLoop:      .res 1
-CountVBlank:        .res 1
+; Used to check if gameloops are in the same step as vblanks
+;CountGameLoop:      .res 1
+;CountVBlank:        .res 1
 
 Buttons:            .res 1
 
@@ -21,6 +23,7 @@ YVelocity:          .res 1
 Frame:              .res 1
 Clock60:            .res 1
 BgPointer:          .res 2
+IsDrawComplete:     .res 1      ; Indicates when VBlank is done drawing
 
 XScroll:            .res 1
 CurrentNametable:   .res 1
@@ -28,7 +31,16 @@ Column:             .res 1
 NewColumnAddress:   .res 2
 SourceAddress:      .res 2
 
-IsDrawComplete:     .res 1      ; Indicates when VBlank is done drawing
+ParamType:          .res 1
+ParamXPos:          .res 1
+ParamYPos:          .res 1
+ParamXVel:          .res 1
+ParamYVel:          .res 1
+ParamTileNumber:    .res 1
+ParamNumTiles:      .res 1
+ParamAttributes:    .res 1
+
+ActorsArray:        .res MAX_ACTORS * .sizeof(Actor)
 ; ----------------------------------------------------------------------------------
 
 ; ---- CODE ------------------------------------------------------------------------
@@ -61,18 +73,6 @@ LoopPalette:
             iny
             cpy #32
             bne LoopPalette
-
-            rts
-.endproc
-
-.proc LoadSprites
-            ldx #0
-LoopSprites:
-            lda SpriteData,x
-            sta $0200,x
-            inx
-            cpx #20
-            bne LoopSprites
 
             rts
 .endproc
@@ -205,6 +205,87 @@ LoopSprites:
             rts
 .endproc
 
+.proc AddNewActor
+            ldx #0
+
+            ArrayLoop:
+                cpx #MAX_ACTORS * .sizeof(Actor)
+                beq EndRoutine
+                lda ActorsArray*Actor::Type,x
+                cmp #ActorType::NULL
+                beq AddNewActorToArray
+            
+            NextActor:
+                txa
+                clc
+                adc #.sizeof(Actor)
+                tax
+                jmp ArrayLoop
+
+            AddNewActorToArray:
+                lda ParamType
+                sta ActorsArray*Actor::Type,x
+                lda ParamXPos
+                sta ActorsArray*Actor::XPosition,x
+                lda ParamYPos
+                sta ActorsArray*Actor::YPosition,x
+                lda ParamXVel
+                sta ActorsArray*Actor::XVelocity,x
+                lda ParamYVel
+                sta ActorsArray*Actor::YVelocity,x
+            
+EndRoutine:
+            rts
+.endproc
+
+.proc RenderActors
+            ldx #0
+    ActorsLoop:
+            lda ActorsArray*Actor::Type,x
+
+            cmp #ActorType::PLAYER
+            bne :+
+                lda ActorsArray*Actor::XPosition, x
+                sta ParamXPos
+                lda ActorsArray*Actor::YPosition, x
+                sta ParamYPos
+                lda #$60
+                sta ParamTileNumber
+                lda #%00000000
+                sta ParamAttributes
+                lda #4
+                sta ParamNumTiles
+
+                jsr DrawSprite
+
+                jmp NextActor
+            :
+            cmp #ActorType::MISSILE
+            bne :+
+                ;; ---- TODO ------------
+                ;; Render player here
+                ;; ----------------------
+                jmp NextActor
+            :
+            cmp #ActorType::SUBMARINE
+            bne :+
+                ;; ---- TODO ------------
+                ;; Render player here
+                ;; ----------------------
+                jmp NextActor
+            :
+
+    NextActor:
+            txa
+            clc
+            adc .sizeof(Actor)
+            tax
+            cmp #MAX_ACTORS * .sizeof(Actor)
+            bne ActorsLoop
+
+        rts
+.endproc
+
 Reset: 
             INIT_NES
 
@@ -215,12 +296,39 @@ InitVariables:
             sta CurrentNametable
             sta Column
             sta IsDrawComplete
-            sta CountGameLoop
-            sta CountVBlank
+            lda #113
+            sta XPosition
+            lda #165
+            sta YPosition
+            ;sta CountGameLoop
+            ;sta CountVBlank
 
 Main:
             jsr LoadPalette
-            jsr LoadSprites
+
+AddSprite0:
+            lda #ActorType::SPRITE0
+            sta ParamType
+            lda #0
+            sta ParamXPos
+            lda #27
+            sta ParamYPos
+            lda #0
+            sta ParamXVel
+            sta ParamYVel
+            jsr AddNewActor
+
+AddPlayer:
+            lda #ActorType::PLAYER
+            sta ParamType
+            lda XPosition
+            sta ParamXPos
+            lda YPosition
+            sta ParamYPos
+            lda #0
+            sta ParamXVel
+            sta ParamYVel
+            jsr AddNewActor
 
 InitBackgroundTiles:
             lda #1
@@ -295,23 +403,43 @@ EnablePPURendering:
 GameLoop:
             jsr ReadControllers
 
-            lda IsDrawComplete
+CheckAButton:
+            lda Buttons
+            and #BUTTON_A
+            beq :+
+                lda #ActorType::MISSILE
+                sta ParamType
+                lda XPosition
+                sta ParamXPos
+                lda YPosition
+                sta ParamYPos
+                lda #0
+                sta ParamXVel
+                lda #255
+                sta ParamYVel
+                jsr AddNewActor
+            :
+
+            ;; TODO
+            ; jsr SpawnActors
+            ; jsr UpdateActors
+            jsr RenderActors
 
             WaitForVblank:
-              cmp IsDrawComplete
+              lda IsDrawComplete
               beq WaitForVblank
 
             lda #0
             sta IsDrawComplete
 
-            inc CountGameLoop
+            ;inc CountGameLoop
 
             jmp GameLoop
 
 NMI:
             PUSH_REGISTERS
 
-            inc CountVBlank
+            ;inc CountVBlank
 
             inc Frame
 
@@ -577,16 +705,6 @@ AttributeData:
 .byte $ff,$aa,$aa,$aa,$5a,$00,$00,$00
 .byte $ff,$aa,$aa,$aa,$59,$00,$00,$00
 .byte $ff,$aa,$aa,$aa,$5a,$00,$00,$00
-
-SpriteData:
-;      Y   tile#  attributes   X
-.byte $27,  $70,  %00100001,  $06 ;   [emoty sprite]   <- Sprite 0 - Used to split scrollable area
-;      Y   tile#  attributes   X
-.byte $A6,  $60,  %00000000,  $70 ;   _______________
-.byte $A6,  $61,  %00000000,  $78 ;   \  o o o o o  /   <-- Ship (4 tiles)
-.byte $A6,  $62,  %00000000,  $80 ;    \___________/
-.byte $A6,  $63,  %00000000,  $88 ; 
-; ----------------------------------------------------------------------------------
 
 .segment "CHARS"
 .incbin "atlantico.chr"
