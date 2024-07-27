@@ -278,6 +278,23 @@ EndRoutine:
         ;     ;; ----------------------
         ;     jmp NextActor
         ; :
+        cmp #ActorType::SPRITE0
+        bne :+
+            lda ActorsArray+Actor::XPosition, x
+            sta ParamXPos
+            lda ActorsArray+Actor::YPosition, x
+            sta ParamYPos
+            lda #$70
+            sta ParamTileNumber
+            lda #%00100001
+            sta ParamAttributes
+            lda #1
+            sta ParamNumTiles
+
+            jsr DrawSprite
+
+            jmp NextActor
+        :
 
         NextActor:
             txa
@@ -504,26 +521,26 @@ NewAttributesCheck:
         jsr DrawNewAttribute
     :
 
-; SetPPUNoScroll:
-;             lda #0
-;             sta PPU_SCROLL
-;             sta PPU_SCROLL
+SetPPUNoScroll:
+    lda #0
+    sta PPU_SCROLL
+    sta PPU_SCROLL
 
-; EnablePPUSprite0:
-;             lda #%10010000
-;             sta PPU_CTRL
-;             lda #%00011110
-;             sta PPU_MASK
+EnablePPUSprite0:
+    lda #%10010000
+    sta PPU_CTRL
+    lda #%00011110
+    sta PPU_MASK
 
-; WaitForNoSprite0:
-;             lda PPU_STATUS
-;             and #%01000000
-;             bne WaitForNoSprite0
+WaitForNoSprite0:
+    lda PPU_STATUS
+    and #%01000000
+    bne WaitForNoSprite0
 
-; WaitForSprite0:
-;             lda PPU_STATUS
-;             and #%01000000
-;             beq WaitForSprite0
+WaitForSprite0:
+    lda PPU_STATUS
+    and #%01000000
+    beq WaitForSprite0
 
 ScrollBackground:
     inc XScroll
