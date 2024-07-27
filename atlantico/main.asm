@@ -8,22 +8,20 @@
 
 ; ---- ZERO-PAGE -------------------------------------------------------------------
 .segment "ZEROPAGE"
-; Used to check if gameloops are in the same step as vblanks
-;CountGameLoop:      .res 1
-;CountVBlank:        .res 1
-
 Buttons:            .res 1
 
-XPosition:          .res 2
-YPosition:          .res 2
+XPosition:          .res 1
+YPosition:          .res 1
 
 XVelocity:          .res 1
 YVelocity:          .res 1
 
 Frame:              .res 1
 Clock60:            .res 1
+IsDrawComplete:     .res 1
+
 BgPointer:          .res 2
-IsDrawComplete:     .res 1      ; Indicates when VBlank is done drawing
+SpritePointer:      .res 2
 
 XScroll:            .res 1
 CurrentNametable:   .res 1
@@ -47,279 +45,409 @@ ActorsArray:        .res MAX_ACTORS * .sizeof(Actor)
 .segment "CODE"
 
 .proc ReadControllers
-            lda #1              ; set the latch to input mode
-            sta Buttons
+    lda #1              ; set the latch to input mode
+    sta Buttons
 
-            sta JOYPAD_1
-            lsr                 ; set to output mode to send to NES (same as setting lda to #0)
-            sta JOYPAD_1
+    sta JOYPAD_1
+    lsr                 ; set to output mode to send to NES (same as setting lda to #0)
+    sta JOYPAD_1
 
 LoopButtons:
-            lda JOYPAD_1
+    lda JOYPAD_1
 
-            lsr
-            rol Buttons
+    lsr
+    rol Buttons
 
-            bcc LoopButtons     ; In the moment that carry is set I break my loop
-            rts
+    bcc LoopButtons     ; In the moment that carry is set I break my loop
+    rts
 .endproc
 
 .proc LoadPalette
-            PPU_SETADDR $3F00
-            ldy #0
+    PPU_SETADDR $3F00
+    ldy #0
 LoopPalette:
-            lda PaletteData, y
-            sta PPU_DATA
-            iny
-            cpy #32
-            bne LoopPalette
+    lda PaletteData, y
+    sta PPU_DATA
+    iny
+    cpy #32
+    bne LoopPalette
 
-            rts
+    rts
 .endproc
 
 .proc DrawNewColumn
-            lda XScroll
-            lsr
-            lsr
-            lsr
-            sta NewColumnAddress
+    lda XScroll
+    lsr
+    lsr
+    lsr
+    sta NewColumnAddress
 
-            lda CurrentNametable
-            eor #1
-            asl
-            asl
-            clc
-            adc #$20
-            sta NewColumnAddress + 1
+    lda CurrentNametable
+    eor #1
+    asl
+    asl
+    clc
+    adc #$20
+    sta NewColumnAddress + 1
 
-            lda Column              ; Multiply (col * 32) to compute the data offset
-            asl
-            asl
-            asl
-            asl
-            asl
-            sta SourceAddress
+    lda Column              ; Multiply (col * 32) to compute the data offset
+    asl
+    asl
+    asl
+    asl
+    asl
+    sta SourceAddress
 
-            lda Column
-            lsr
-            lsr
-            lsr
-            sta SourceAddress + 1
+    lda Column
+    lsr
+    lsr
+    lsr
+    sta SourceAddress + 1
 
-            lda SourceAddress
-            clc
-            adc #<BackgroundData
-            sta SourceAddress
+    lda SourceAddress
+    clc
+    adc #<BackgroundData
+    sta SourceAddress
 
-            lda SourceAddress + 1
-            adc #>BackgroundData
-            sta SourceAddress + 1
+    lda SourceAddress + 1
+    adc #>BackgroundData
+    sta SourceAddress + 1
 
-            DrawColumn:
-                lda #%00000100
-                sta PPU_CTRL
+    DrawColumn:
+        lda #%00000100
+        sta PPU_CTRL
 
-                lda PPU_STATUS
-                lda NewColumnAddress + 1
-                sta PPU_ADDR
-                lda NewColumnAddress
-                sta PPU_ADDR
+        lda PPU_STATUS
+        lda NewColumnAddress + 1
+        sta PPU_ADDR
+        lda NewColumnAddress
+        sta PPU_ADDR
 
-                ldx #30
-                ldy #0
+        ldx #30
+        ldy #0
 
-                DrawColumnLoop:
-                    lda (SourceAddress), y
-                    sta PPU_DATA
-                    iny
-                    dex
-                    bne DrawColumnLoop
+        DrawColumnLoop:
+            lda (SourceAddress), y
+            sta PPU_DATA
+            iny
+            dex
+            bne DrawColumnLoop
 
-            rts
+    rts
 .endproc
 
 .proc DrawNewAttribute
-            lda CurrentNametable
-            eor #1
-            asl
-            asl
-            clc
-            adc #$23
-            sta NewColumnAddress + 1
+    lda CurrentNametable
+    eor #1
+    asl
+    asl
+    clc
+    adc #$23
+    sta NewColumnAddress + 1
 
-            lda XScroll
-            lsr
-            lsr
-            lsr
-            lsr
-            lsr
-            clc
-            adc #$C0
-            sta NewColumnAddress
+    lda XScroll
+    lsr
+    lsr
+    lsr
+    lsr
+    lsr
+    clc
+    adc #$C0
+    sta NewColumnAddress
 
-            lda Column
-            and #%11111100
-            asl
-            sta SourceAddress
+    lda Column
+    and #%11111100
+    asl
+    sta SourceAddress
 
-            lda Column
-            lsr
-            lsr
-            lsr
-            lsr
-            lsr
-            lsr
-            lsr
-            sta SourceAddress + 1
+    lda Column
+    lsr
+    lsr
+    lsr
+    lsr
+    lsr
+    lsr
+    lsr
+    sta SourceAddress + 1
 
-            lda SourceAddress
-            clc
-            adc #<AttributeData
-            sta SourceAddress
+    lda SourceAddress
+    clc
+    adc #<AttributeData
+    sta SourceAddress
 
-            lda SourceAddress + 1
-            adc #>AttributeData
-            sta SourceAddress + 1
+    lda SourceAddress + 1
+    adc #>AttributeData
+    sta SourceAddress + 1
 
-            DrawAttribute:
-                bit PPU_STATUS
-                ldy #0
+    DrawAttribute:
+        bit PPU_STATUS
+        ldy #0
 
-                DrawAttributeLoop:
-                    lda NewColumnAddress + 1
-                    sta PPU_ADDR
-                    lda NewColumnAddress
-                    sta PPU_ADDR
-                    lda (SourceAddress), y
-                    sta PPU_DATA
-                    iny
-                    cpy #8
-                    beq :+
-                        lda NewColumnAddress
-                        clc
-                        adc #8
-                        sta NewColumnAddress
-                        jmp DrawAttributeLoop
-                    :
+        DrawAttributeLoop:
+            lda NewColumnAddress + 1
+            sta PPU_ADDR
+            lda NewColumnAddress
+            sta PPU_ADDR
+            lda (SourceAddress), y
+            sta PPU_DATA
+            iny
+            cpy #8
+            beq :+
+                lda NewColumnAddress
+                clc
+                adc #8
+                sta NewColumnAddress
+                jmp DrawAttributeLoop
+            :
 
-            rts
+    rts
 .endproc
 
 .proc AddNewActor
-            ldx #0
+    ldx #0
 
-            ArrayLoop:
-                cpx #MAX_ACTORS * .sizeof(Actor)
-                beq EndRoutine
-                lda ActorsArray*Actor::Type,x
-                cmp #ActorType::NULL
-                beq AddNewActorToArray
-            
-            NextActor:
-                txa
-                clc
-                adc #.sizeof(Actor)
-                tax
-                jmp ArrayLoop
+    ArrayLoop:
+        cpx #MAX_ACTORS * .sizeof(Actor)
+        beq EndRoutine
+        lda ActorsArray+Actor::Type,x
+        cmp #ActorType::NULL
+        beq AddNewActorToArray
+    
+    NextActor:
+        txa
+        clc
+        adc #.sizeof(Actor)
+        tax
+        jmp ArrayLoop
 
-            AddNewActorToArray:
-                lda ParamType
-                sta ActorsArray*Actor::Type,x
-                lda ParamXPos
-                sta ActorsArray*Actor::XPosition,x
-                lda ParamYPos
-                sta ActorsArray*Actor::YPosition,x
-                lda ParamXVel
-                sta ActorsArray*Actor::XVelocity,x
-                lda ParamYVel
-                sta ActorsArray*Actor::YVelocity,x
+    AddNewActorToArray:
+        lda ParamType
+        sta ActorsArray+Actor::Type,x
+        lda ParamXPos
+        sta ActorsArray+Actor::XPosition,x
+        lda ParamYPos
+        sta ActorsArray+Actor::YPosition,x
+        lda ParamXVel
+        sta ActorsArray+Actor::XVelocity,x
+        lda ParamYVel
+        sta ActorsArray+Actor::YVelocity,x
             
 EndRoutine:
-            rts
+    rts
 .endproc
 
 .proc RenderActors
-            ldx #0
+    lda #$02
+    sta SpritePointer+1
+    lda #$00
+    sta SpritePointer
+
+    ldy #0
+    ldx #0
     ActorsLoop:
-            lda ActorsArray*Actor::Type,x
+        lda ActorsArray+Actor::Type,x
 
-            cmp #ActorType::PLAYER
-            bne :+
-                lda ActorsArray*Actor::XPosition, x
-                sta ParamXPos
-                lda ActorsArray*Actor::YPosition, x
-                sta ParamYPos
-                lda #$60
-                sta ParamTileNumber
-                lda #%00000000
-                sta ParamAttributes
-                lda #4
-                sta ParamNumTiles
+        cmp #ActorType::PLAYER
+        bne :+
+            lda ActorsArray+Actor::XPosition, x
+            sta ParamXPos
+            lda ActorsArray+Actor::YPosition, x
+            sta ParamYPos
+            lda #$60
+            sta ParamTileNumber
+            lda #%00000000
+            sta ParamAttributes
+            lda #4
+            sta ParamNumTiles
 
-                jsr DrawSprite
+            jsr DrawSprite
 
-                jmp NextActor
-            :
-            cmp #ActorType::MISSILE
-            bne :+
-                ;; ---- TODO ------------
-                ;; Render player here
-                ;; ----------------------
-                jmp NextActor
-            :
-            cmp #ActorType::SUBMARINE
-            bne :+
-                ;; ---- TODO ------------
-                ;; Render player here
-                ;; ----------------------
-                jmp NextActor
-            :
+            jmp NextActor
+        :
+        ; cmp #ActorType::MISSILE
+        ; bne :+
+        ;     ;; ---- TODO ------------
+        ;     ;; Render player here
+        ;     ;; ----------------------
+        ;     jmp NextActor
+        ; :
+        ; cmp #ActorType::SUBMARINE
+        ; bne :+
+        ;     ;; ---- TODO ------------
+        ;     ;; Render player here
+        ;     ;; ----------------------
+        ;     jmp NextActor
+        ; :
 
-    NextActor:
+        NextActor:
             txa
             clc
-            adc .sizeof(Actor)
+            adc #.sizeof(Actor)
             tax
             cmp #MAX_ACTORS * .sizeof(Actor)
             bne ActorsLoop
 
-        rts
+    rts
+.endproc
+
+.proc DrawSprite
+    txa
+    pha
+
+    ldx #0
+
+    TileLoop:
+        lda ParamYPos
+        sta (SpritePointer), y
+        iny
+
+        lda ParamTileNumber
+        sta (SpritePointer), y
+        inc ParamTileNumber
+        iny
+
+        lda ParamAttributes
+        sta (SpritePointer), y
+        iny
+
+        lda ParamXPos
+        sta (SpritePointer), y
+        clc
+        adc #8
+        sta ParamXPos
+
+        iny
+
+        inx
+        cpx ParamNumTiles
+        bne TileLoop
+
+    pla
+    tax
+
+    rts
 .endproc
 
 Reset: 
-            INIT_NES
+    INIT_NES
 
 InitVariables:
-            lda #0
-            sta Frame
-            sta Clock60
-            sta CurrentNametable
-            sta Column
-            sta IsDrawComplete
-            lda #113
-            sta XPosition
-            lda #165
-            sta YPosition
-            ;sta CountGameLoop
-            ;sta CountVBlank
+    lda #0
+    sta Frame
+    sta Clock60
+    sta CurrentNametable
+    sta Column
+    sta IsDrawComplete
+    lda #113
+    sta XPosition
+    lda #165
+    sta YPosition
 
 Main:
-            jsr LoadPalette
+    jsr LoadPalette
 
 AddSprite0:
-            lda #ActorType::SPRITE0
-            sta ParamType
-            lda #0
-            sta ParamXPos
-            lda #27
-            sta ParamYPos
-            lda #0
-            sta ParamXVel
-            sta ParamYVel
-            jsr AddNewActor
+    lda #ActorType::SPRITE0
+    sta ParamType
+    lda #0
+    sta ParamXPos
+    lda #27
+    sta ParamYPos
+    lda #0
+    sta ParamXVel
+    sta ParamYVel
+    jsr AddNewActor
 
 AddPlayer:
-            lda #ActorType::PLAYER
+    lda #ActorType::PLAYER
+    sta ParamType
+    lda XPosition
+    sta ParamXPos
+    lda YPosition
+    sta ParamYPos
+    lda #0
+    sta ParamXVel
+    sta ParamYVel
+    jsr AddNewActor
+
+InitBackgroundTiles:
+    lda #1
+    sta CurrentNametable
+    lda #0
+    sta XScroll
+    sta Column
+
+InitBackgroundLoop:
+    jsr DrawNewColumn
+
+    lda XScroll
+    clc
+    adc #8
+    sta XScroll
+
+    inc Column
+
+    lda Column
+    cmp #32
+    bne InitBackgroundLoop
+
+    lda #0
+    sta CurrentNametable
+    lda #1
+    sta XScroll
+
+    jsr DrawNewColumn
+    inc Column
+
+    lda #%00000000
+    sta PPU_CTRL
+
+InitAttributes:
+    lda #1
+    sta CurrentNametable
+    lda #0
+    sta XScroll
+    sta Column
+
+InitAttributesLoop:
+    jsr DrawNewAttribute
+    lda XScroll
+    clc
+    adc #32
+    sta XScroll
+
+    lda Column
+    clc
+    adc #4
+    sta Column
+    cmp #32
+    bne InitAttributesLoop
+
+    lda #0
+    sta CurrentNametable
+    lda #1
+    sta XScroll
+    jsr DrawNewAttribute
+
+    inc Column
+
+EnablePPURendering:
+    lda #%10010000
+    sta PPU_CTRL
+    lda #0
+    sta PPU_SCROLL
+    sta PPU_SCROLL
+    lda #%00011110
+    sta PPU_MASK
+
+GameLoop:
+    jsr ReadControllers
+
+    CheckAButton:
+        lda Buttons
+        and #BUTTON_A
+        beq :+
+            lda #ActorType::MISSILE
             sta ParamType
             lda XPosition
             sta ParamXPos
@@ -327,210 +455,117 @@ AddPlayer:
             sta ParamYPos
             lda #0
             sta ParamXVel
+            lda #255
             sta ParamYVel
             jsr AddNewActor
-
-InitBackgroundTiles:
-            lda #1
-            sta CurrentNametable
-            lda #0
-            sta XScroll
-            sta Column
-
-InitBackgroundLoop:
-            jsr DrawNewColumn
-
-            lda XScroll
-            clc
-            adc #8
-            sta XScroll
-
-            inc Column
-
-            lda Column
-            cmp #32
-            bne InitBackgroundLoop
-
-            lda #0
-            sta CurrentNametable
-            lda #1
-            sta XScroll
-
-            jsr DrawNewColumn
-            inc Column
-
-            lda #%00000000
-            sta PPU_CTRL
-
-InitAttributes:
-            lda #1
-            sta CurrentNametable
-            lda #0
-            sta XScroll
-            sta Column
-
-InitAttributesLoop:
-            jsr DrawNewAttribute
-            lda XScroll
-            clc
-            adc #32
-            sta XScroll
-
-            lda Column
-            clc
-            adc #4
-            sta Column
-            cmp #32
-            bne InitAttributesLoop
-
-            lda #0
-            sta CurrentNametable
-            lda #1
-            sta XScroll
-            jsr DrawNewAttribute
-
-            inc Column
-
-EnablePPURendering:
-            lda #%10010000
-            sta PPU_CTRL
-            lda #0
-            sta PPU_SCROLL
-            sta PPU_SCROLL
-            lda #%00011110
-            sta PPU_MASK
-
-GameLoop:
-            jsr ReadControllers
-
-CheckAButton:
-            lda Buttons
-            and #BUTTON_A
-            beq :+
-                lda #ActorType::MISSILE
-                sta ParamType
-                lda XPosition
-                sta ParamXPos
-                lda YPosition
-                sta ParamYPos
-                lda #0
-                sta ParamXVel
-                lda #255
-                sta ParamYVel
-                jsr AddNewActor
-            :
+        :
 
             ;; TODO
             ; jsr SpawnActors
             ; jsr UpdateActors
-            jsr RenderActors
+    jsr RenderActors
 
-            WaitForVblank:
-              lda IsDrawComplete
-              beq WaitForVblank
+    WaitForVblank:
+        lda IsDrawComplete
+        beq WaitForVblank
 
-            lda #0
-            sta IsDrawComplete
+    lda #0
+    sta IsDrawComplete
 
-            ;inc CountGameLoop
-
-            jmp GameLoop
+    jmp GameLoop
 
 NMI:
-            PUSH_REGISTERS
+    PUSH_REGISTERS
 
-            ;inc CountVBlank
-
-            inc Frame
+    inc Frame
 
 OAMDMACopy:
-            lda #$02
-            sta PPU_OAM_DMA
+    lda #$02
+    sta PPU_OAM_DMA
 
 NewColumnCheck:
-            lda XScroll
-            and #%00000111
-            bne EndColumnCheck
-              jsr DrawNewColumn
+    lda XScroll
+    and #%00000111
+    bne :+
+        jsr DrawNewColumn
 
-            Clamp128Columns:
-              lda Column
-              clc
-              adc #1
-              and #%01111111
-              sta Column
-
-            EndColumnCheck:
+        Clamp128Columns:
+            lda Column
+            clc
+            adc #1
+            and #%01111111
+            sta Column
+    :
 
 NewAttributesCheck:
-            lda XScroll
-            and #%00011111
-            bne :+
-              jsr DrawNewAttribute
-            :
+    lda XScroll
+    and #%00011111
+    bne :+
+        jsr DrawNewAttribute
+    :
 
-SetPPUNoScroll:
-            lda #0
-            sta PPU_SCROLL
-            sta PPU_SCROLL
+; SetPPUNoScroll:
+;             lda #0
+;             sta PPU_SCROLL
+;             sta PPU_SCROLL
 
-EnablePPUSprite0:
-            lda #%10010000
-            sta PPU_CTRL
-            lda #%00011110
-            sta PPU_MASK
+; EnablePPUSprite0:
+;             lda #%10010000
+;             sta PPU_CTRL
+;             lda #%00011110
+;             sta PPU_MASK
 
-WaitForNoSprite0:
-            lda PPU_STATUS
-            and #%01000000
-            bne WaitForNoSprite0
+; WaitForNoSprite0:
+;             lda PPU_STATUS
+;             and #%01000000
+;             bne WaitForNoSprite0
 
-WaitForSprite0:
-            lda PPU_STATUS
-            and #%01000000
-            beq WaitForSprite0
+; WaitForSprite0:
+;             lda PPU_STATUS
+;             and #%01000000
+;             beq WaitForSprite0
 
 ScrollBackground:
-            inc XScroll
-            lda XScroll
-            bne :+
-              lda CurrentNametable
-              eor #1
-              sta CurrentNametable
-            :
+    inc XScroll
+    lda XScroll
+    bne :+
+        lda CurrentNametable
+        eor #1
+        sta CurrentNametable
+    :
 
-            lda XScroll
-            sta PPU_SCROLL
-            lda #0
-            sta PPU_SCROLL    ; Disables Y Scroll
+    lda XScroll
+    sta PPU_SCROLL
+    lda #0
+    sta PPU_SCROLL    ; Disables Y Scroll
 
 RefreshRendering:
-            lda #%10010000
-            ora CurrentNametable
-            sta PPU_CTRL
-            lda #%00011110
-            sta PPU_MASK
+    lda #%10010000
+    ora CurrentNametable
+    sta PPU_CTRL
+    lda #%00011110
+    sta PPU_MASK
 
 SetGameClock:
-            lda Frame
-            cmp #60
-            bne :+
-              inc Clock60
+    lda Frame
+    cmp #60
+    bne :+
+        inc Clock60
 
-              lda #0
-              sta Frame
-            :
+        lda #0
+        sta Frame
+    :
 
 SetDrawComplete:
-            lda #1
-            sta IsDrawComplete
+    lda #1
+    sta IsDrawComplete
 
-            PULL_REGISTERS
+    PULL_REGISTERS
 
-            rti
+    rti
 
 IRQ:
-            rti   
+    rti   
 
 PaletteData:
 .byte $1C,$0F,$22,$1C, $1C,$37,$3D,$0F, $1C,$37,$3D,$30, $1C,$0F,$3D,$30 ; Background palette
