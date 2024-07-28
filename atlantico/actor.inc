@@ -16,6 +16,4 @@
     Type        .byte
     XPosition   .byte
     YPosition   .byte
-    XVelocity   .byte
-    YVelocity   .byte
 .endstruct

@@ -32,8 +32,6 @@ SourceAddress:      .res 2
 ParamType:          .res 1
 ParamXPos:          .res 1
 ParamYPos:          .res 1
-ParamXVel:          .res 1
-ParamYVel:          .res 1
 ParamTileNumber:    .res 1
 ParamNumTiles:      .res 1
 ParamAttributes:    .res 1
@@ -227,12 +225,35 @@ LoopPalette:
         sta ActorsArray+Actor::XPosition,x
         lda ParamYPos
         sta ActorsArray+Actor::YPosition,x
-        lda ParamXVel
-        sta ActorsArray+Actor::XVelocity,x
-        lda ParamYVel
-        sta ActorsArray+Actor::YVelocity,x
             
 EndRoutine:
+    rts
+.endproc
+
+.proc UpdateActors
+    ldx #0
+
+    ActorsLoop:
+        lda ActorsArray+Actor::Type,x
+
+        cmp #ActorType::MISSILE
+        bne :+
+            lda ActorsArray+Actor::YPosition,x
+            clc
+            sbc #1
+            sta ActorsArray+Actor::YPosition,x
+            
+            jmp NextActor
+        :
+
+        NextActor:
+            txa
+            clc
+            adc #.sizeof(Actor)
+            tax
+            cmp #MAX_ACTORS * .sizeof(Actor)
+            bne ActorsLoop
+
     rts
 .endproc
 
@@ -373,9 +394,6 @@ AddSprite0:
     sta ParamXPos
     lda #27
     sta ParamYPos
-    lda #0
-    sta ParamXVel
-    sta ParamYVel
     jsr AddNewActor
 
 AddPlayer:
@@ -385,9 +403,6 @@ AddPlayer:
     sta ParamXPos
     lda YPosition
     sta ParamYPos
-    lda #0
-    sta ParamXVel
-    sta ParamYVel
     jsr AddNewActor
 
 InitBackgroundTiles:
@@ -473,16 +488,12 @@ GameLoop:
             sta ParamXPos
             lda YPosition
             sta ParamYPos
-            lda #0
-            sta ParamXVel
-            lda #255
-            sta ParamYVel
             jsr AddNewActor
         :
 
             ;; TODO
             ; jsr SpawnActors
-            ; jsr UpdateActors
+        jsr UpdateActors
     jsr RenderActors
 
     WaitForVblank:
