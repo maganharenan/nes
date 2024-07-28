@@ -9,6 +9,7 @@
 ; ---- ZERO-PAGE -------------------------------------------------------------------
 .segment "ZEROPAGE"
 Buttons:            .res 1
+PreviousButtons:     .res 1
 
 XPosition:          .res 1
 YPosition:          .res 1
@@ -242,7 +243,7 @@ EndRoutine:
             clc
             sbc #1
             sta ActorsArray+Actor::YPosition,x
-            
+
             jmp NextActor
         :
 
@@ -476,19 +477,26 @@ EnablePPURendering:
     sta PPU_MASK
 
 GameLoop:
+    lda Buttons
+    sta PreviousButtons
+
     jsr ReadControllers
 
     CheckAButton:
         lda Buttons
         and #BUTTON_A
         beq :+
-            lda #ActorType::MISSILE
-            sta ParamType
-            lda XPosition
-            sta ParamXPos
-            lda YPosition
-            sta ParamYPos
-            jsr AddNewActor
+            lda Buttons
+            and #BUTTON_A
+            cmp PreviousButtons
+            beq :+
+                lda #ActorType::MISSILE
+                sta ParamType
+                lda XPosition
+                sta ParamXPos
+                lda YPosition
+                sta ParamYPos
+                jsr AddNewActor
         :
 
             ;; TODO
