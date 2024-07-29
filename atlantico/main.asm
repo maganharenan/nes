@@ -37,6 +37,8 @@ ParamTileNumber:    .res 1
 ParamNumTiles:      .res 1
 ParamAttributes:    .res 1
 
+PreviousOAMCount:   .res 1
+
 ActorsArray:        .res MAX_ACTORS * .sizeof(Actor)
 ; ----------------------------------------------------------------------------------
 
@@ -240,10 +242,14 @@ EndRoutine:
         cmp #ActorType::MISSILE
         bne :+
             lda ActorsArray+Actor::YPosition,x
-            clc
+            sec
             sbc #1
             sta ActorsArray+Actor::YPosition,x
+            bcs Skip
+                lda #ActorType::NULL
+                sta ActorsArray+Actor::Type,x
 
+            Skip:
             jmp NextActor
         :
 
@@ -328,6 +334,28 @@ EndRoutine:
             tax
             cmp #MAX_ACTORS * .sizeof(Actor)
             bne ActorsLoop
+
+            tya
+            pha
+
+        LoopTrailingTiles:
+            cpy PreviousOAMCount
+            bcs :+
+                lda #$FF
+                sta (SpritePointer), y
+                iny
+                sta (SpritePointer), y
+                iny
+                sta (SpritePointer), y
+                iny
+                sta (SpritePointer), y
+                iny
+
+                jmp LoopTrailingTiles
+            :
+
+            pla
+            sta PreviousOAMCount
 
     rts
 .endproc
