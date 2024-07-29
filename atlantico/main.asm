@@ -17,6 +17,9 @@ YPosition:          .res 1
 XVelocity:          .res 1
 YVelocity:          .res 1
 
+PreviousSubmarine:  .res 1
+PreviousAirplane:   .res 1
+
 Frame:              .res 1
 Clock60:            .res 1
 IsDrawComplete:     .res 1
@@ -233,6 +236,45 @@ EndRoutine:
     rts
 .endproc
 
+.proc SpawnActors
+    lda Clock60
+    sec
+    sbc PreviousSubmarine
+    cmp #3
+    bne :+
+        lda #ActorType::SUBMARINE
+        sta ParamType
+        lda #223
+        sta ParamXPos
+        lda #185
+        sta ParamYPos
+
+        jsr AddNewActor
+
+        lda Clock60
+        sta PreviousSubmarine
+    :
+    lda Clock60
+    sec
+    sbc PreviousAirplane
+    cmp #2
+    bne :+
+        lda #ActorType::AIRPLANE
+        sta ParamType
+        lda #223
+        sta ParamXPos
+        lda #85
+        sta ParamYPos
+
+        jsr AddNewActor
+
+        lda Clock60
+        sta PreviousAirplane
+    :
+
+    rts
+.endproc
+
 .proc UpdateActors
     ldx #0
 
@@ -245,11 +287,37 @@ EndRoutine:
             sec
             sbc #1
             sta ActorsArray+Actor::YPosition,x
-            bcs Skip
+            bcs SkipMissile
                 lda #ActorType::NULL
                 sta ActorsArray+Actor::Type,x
 
-            Skip:
+            SkipMissile:
+            jmp NextActor
+        :
+        cmp #ActorType::SUBMARINE
+        bne :+
+            lda ActorsArray+Actor::XPosition,x
+            sec
+            sbc #1
+            sta ActorsArray+Actor::XPosition,x
+            bcs SkipSubmarine
+                lda #ActorType::NULL
+                sta ActorsArray+Actor::Type,x
+
+            SkipSubmarine:
+            jmp NextActor
+        :
+        cmp #ActorType::AIRPLANE
+        bne :+
+            lda ActorsArray+Actor::XPosition,x
+            sec
+            sbc #1
+            sta ActorsArray+Actor::XPosition,x
+            bcs SkipAirplane
+                lda #ActorType::NULL
+                sta ActorsArray+Actor::Type,x
+
+            SkipAirplane:
             jmp NextActor
         :
 
@@ -300,9 +368,43 @@ EndRoutine:
             sta ParamYPos
             lda #$50
             sta ParamTileNumber
-            lda #%00000000
+            lda #%00000001
             sta ParamAttributes
             lda #1
+            sta ParamNumTiles
+
+            jsr DrawSprite
+
+            jmp NextActor
+        :
+        cmp #ActorType::SUBMARINE
+        bne :+
+            lda ActorsArray+Actor::XPosition, x
+            sta ParamXPos
+            lda ActorsArray+Actor::YPosition, x
+            sta ParamYPos
+            lda #$04
+            sta ParamTileNumber
+            lda #%00100000
+            sta ParamAttributes
+            lda #4
+            sta ParamNumTiles
+
+            jsr DrawSprite
+
+            jmp NextActor
+        :
+        cmp #ActorType::AIRPLANE
+        bne :+
+            lda ActorsArray+Actor::XPosition, x
+            sta ParamXPos
+            lda ActorsArray+Actor::YPosition, x
+            sta ParamYPos
+            lda #$10
+            sta ParamTileNumber
+            lda #%00000011
+            sta ParamAttributes
+            lda #2
             sta ParamNumTiles
 
             jsr DrawSprite
@@ -333,7 +435,10 @@ EndRoutine:
             adc #.sizeof(Actor)
             tax
             cmp #MAX_ACTORS * .sizeof(Actor)
-            bne ActorsLoop
+
+            beq :+
+                jmp ActorsLoop
+            :
 
             tya
             pha
@@ -527,9 +632,8 @@ GameLoop:
                 jsr AddNewActor
         :
 
-            ;; TODO
-            ; jsr SpawnActors
-        jsr UpdateActors
+    jsr SpawnActors
+    jsr UpdateActors
     jsr RenderActors
 
     WaitForVblank:
