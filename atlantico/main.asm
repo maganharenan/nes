@@ -8,8 +8,10 @@
 
 ; ---- ZERO-PAGE -------------------------------------------------------------------
 .segment "ZEROPAGE"
+Collision:          .res 1
+
 Buttons:            .res 1
-PreviousButtons:     .res 1
+PreviousButtons:    .res 1
 
 XPosition:          .res 1
 YPosition:          .res 1
@@ -39,6 +41,10 @@ ParamYPos:          .res 1
 ParamTileNumber:    .res 1
 ParamNumTiles:      .res 1
 ParamAttributes:    .res 1
+ParamRectX1:        .res 1
+ParamRectY1:        .res 1
+ParamRectX2:        .res 1
+ParamRectY2:        .res 1
 
 PreviousOAMCount:   .res 1
 
@@ -305,6 +311,88 @@ EndRoutine:
     rts
 .endproc
 
+.proc IsPointInsideBoundingBox
+    lda ParamXPos
+    cmp ParamRectX1
+    bcc PointIsOutside
+
+    lda ParamYPos
+    cmp ParamRectY1
+    bcc PointIsOutside
+
+    lda ParamXPos
+    cmp ParamRectX2
+    bcs PointIsOutside
+
+    lda ParamYPos
+    cmp ParamRectY2
+    bcs PointIsOutside
+
+    PointIsInside:
+        lda #1
+        sta Collision
+        jmp EndCollisionCheck
+
+    PointIsOutside:
+        lda #0
+        sta Collision
+
+    EndCollisionCheck:
+        rts
+.endproc
+
+.proc CheckEnemyCollision
+    txa
+    pha
+
+    ldx #0
+    stx Collision
+
+    EnemiesCollisionLoop:
+        cpx #MAX_ACTORS * .sizeof(Actor)
+        beq FinishCollisionCheck
+
+            lda ActorsArray+Actor::Type,x
+            cmp #ActorType::AIRPLANE
+            bne NextEnemy
+
+            lda ActorsArray+Actor::XPosition,x
+            sta ParamRectX1
+            lda ActorsArray+Actor::YPosition,x
+            sta ParamRectY1
+
+            lda ActorsArray+Actor::XPosition,x
+            clc
+            adc #22
+            sta ParamRectX2
+
+            lda ActorsArray+Actor::YPosition,x
+            clc
+            adc #8
+            sta ParamRectY2
+
+            jsr IsPointInsideBoundingBox
+
+            lda Collision
+            beq NextEnemy
+                lda #ActorType::NULL
+                sta ActorsArray+Actor::Type,x
+                jmp FinishCollisionCheck
+
+    NextEnemy:
+        txa
+        clc
+        adc #.sizeof(Actor)
+        tax
+        jmp EnemiesCollisionLoop
+
+    FinishCollisionCheck:
+        pla
+        tax
+
+        rts
+.endproc
+
 .proc UpdateActors
     ldx #0
 
@@ -322,7 +410,27 @@ EndRoutine:
                 sta ActorsArray+Actor::Type,x
 
             SkipMissile:
-            jmp NextActor
+
+            CheckCollision:
+                lda ActorsArray+Actor::XPosition,x
+                clc
+                adc #3
+                sta ParamXPos
+
+                lda ActorsArray+Actor::YPosition,x
+                clc
+                adc #1
+                sta ParamYPos
+
+                jsr CheckEnemyCollision
+
+                lda Collision
+                beq NoCollisionFound
+                    lda #ActorType::NULL
+                    sta ActorsArray+Actor::Type,x
+
+                NoCollisionFound:
+                    jmp NextActor
         :
         cmp #ActorType::SUBMARINE
         bne :+
