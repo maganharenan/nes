@@ -267,7 +267,11 @@ EndRoutine:
         sta ParamType
         lda #223
         sta ParamXPos
-        lda #185
+        jsr GetRandomNumber
+        lsr
+        lsr
+        lsr
+        adc #185
         sta ParamYPos
 
         jsr AddNewActor
@@ -286,6 +290,10 @@ EndRoutine:
         sta ParamXPos
 
         jsr GetRandomNumber
+        lsr
+        lsr
+        clc
+        adc #35
         sta ParamYPos
 
         jsr AddNewActor
