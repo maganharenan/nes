@@ -43,10 +43,31 @@ ParamAttributes:    .res 1
 PreviousOAMCount:   .res 1
 
 ActorsArray:        .res MAX_ACTORS * .sizeof(Actor)
+
+Seed:               .res 2
 ; ----------------------------------------------------------------------------------
 
 ; ---- CODE ------------------------------------------------------------------------
 .segment "CODE"
+
+.proc GetRandomNumber
+    ldy #8
+    lda Seed+0
+
+    Loop8Times:
+        asl
+        rol Seed+1
+        bcc :+
+            eor #$39
+        :
+        dey 
+        bne Loop8Times
+
+        sta Seed+0
+        cmp #0
+
+        rts
+.endproc
 
 .proc ReadControllers
     lda #1              ; set the latch to input mode
@@ -263,7 +284,8 @@ EndRoutine:
         sta ParamType
         lda #223
         sta ParamXPos
-        lda #85
+
+        jsr GetRandomNumber
         sta ParamYPos
 
         jsr AddNewActor
@@ -517,6 +539,10 @@ InitVariables:
     sta XPosition
     lda #165
     sta YPosition
+
+    lda #$10
+    sta Seed+1
+    sta Seed+0
 
 Main:
     jsr LoadPalette
