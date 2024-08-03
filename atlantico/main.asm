@@ -8,6 +8,8 @@
 
 ; ---- ZERO-PAGE -------------------------------------------------------------------
 .segment "ZEROPAGE"
+Score:              .res 4
+
 Collision:          .res 1
 
 Buttons:            .res 1
@@ -28,6 +30,7 @@ IsDrawComplete:     .res 1
 
 BgPointer:          .res 2
 SpritePointer:      .res 2
+BufferPointer:      .res 2
 
 XScroll:            .res 1
 CurrentNametable:   .res 1
@@ -51,10 +54,94 @@ PreviousOAMCount:   .res 1
 ActorsArray:        .res MAX_ACTORS * .sizeof(Actor)
 
 Seed:               .res 2
+
 ; ----------------------------------------------------------------------------------
 
 ; ---- CODE ------------------------------------------------------------------------
 .segment "CODE"
+
+.proc IncrementScore
+    Increment1sDigit:
+        lda Score+0
+        clc
+        adc #1
+        sta Score+0
+        cmp #$A
+        bne DoneIncrementing
+
+    Increment10sDigit:
+        lda #0
+        sta Score+0
+        lda Score+1
+        clc
+        adc #1
+        sta Score+1
+        cmp #$A
+        bne DoneIncrementing
+
+    Increment100sDigit:
+        lda #0
+        sta Score+1
+        lda Score+2
+        clc
+        adc #1
+        sta Score+2
+        cmp #$A
+        bne DoneIncrementing
+
+    Increment1000sDigit:
+        lda #0
+        sta Score+2
+        lda Score+3
+        clc
+        adc #1
+        sta Score+3
+
+    DoneIncrementing:
+        rts
+.endproc
+
+.proc DrawScore
+    lda #$70
+    sta BufferPointer+1
+    lda #$00
+    sta BufferPointer+0
+
+    ldy #0
+
+    lda #3
+    sta (BufferPointer),y
+    iny
+
+    lda #$20
+    sta (BufferPointer),y
+    iny
+
+    lda #$52
+    sta (BufferPointer),y
+    iny
+
+    lda Score+2
+    adc #$60
+    sta (BufferPointer),y
+    iny
+
+    lda Score+1
+    adc #$60
+    sta (BufferPointer),y
+    iny
+
+    lda Score+0
+    adc #$60
+    sta (BufferPointer),y
+    iny
+
+    lda #0
+    sta (BufferPointer),y
+    iny
+
+    rts
+.endproc
 
 .proc GetRandomNumber
     ldy #8
@@ -428,6 +515,7 @@ EndRoutine:
                 beq NoCollisionFound
                     lda #ActorType::NULL
                     sta ActorsArray+Actor::Type,x
+                    jsr IncrementScore
 
                 NoCollisionFound:
                     jmp NextActor
@@ -796,6 +884,39 @@ OAMDMACopy:
     lda #$02
     sta PPU_OAM_DMA
 
+BackgroundCopy:
+    lda #$70
+    sta BufferPointer+1
+    lda #$00
+    sta BufferPointer+0
+
+    ldy #$00
+
+    BufferLoop:
+    lda (BufferPointer),y
+    beq EndBackgroundCopy
+
+    tax
+
+    iny
+    lda (BufferPointer),y
+    sta PPU_ADDR
+    iny
+    lda (BufferPointer),y
+    sta PPU_ADDR
+    iny
+
+    DataLoop:
+    lda (BufferPointer),y
+    sta PPU_DATA
+    iny
+    dex
+    bne DataLoop
+
+    jmp BufferLoop
+
+EndBackgroundCopy:
+
 NewColumnCheck:
     lda XScroll
     and #%00000111
@@ -868,6 +989,8 @@ SetGameClock:
         lda #0
         sta Frame
     :
+
+    jsr DrawScore
 
 SetDrawComplete:
     lda #1
