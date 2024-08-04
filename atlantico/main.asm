@@ -862,6 +862,14 @@ GameLoop:
                 jsr AddNewActor
         :
 
+    CheckSelectButton:
+        lda Buttons
+        and #BUTTON_SELECT
+        beq :+
+            lda #1
+            sta $8000
+        :
+
     jsr SpawnActors
     jsr UpdateActors
     jsr RenderActors
@@ -1177,8 +1185,11 @@ AttributeData:
 .byte $ff,$aa,$aa,$aa,$59,$00,$00,$00
 .byte $ff,$aa,$aa,$aa,$5a,$00,$00,$00
 
-.segment "CHARS"
+.segment "CHARS1"
 .incbin "atlantico.chr"
+
+.segment "CHARS2"
+.incbin "atlantico2.chr"
 
 ; ---- VECTORS ---------------------------------------------------------------------
 .segment "VECTORS"
