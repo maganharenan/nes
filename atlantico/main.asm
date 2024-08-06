@@ -527,7 +527,9 @@ EndRoutine:
                 beq NoCollisionFound
                     lda #ActorType::NULL
                     sta ActorsArray+Actor::Type,x
+
                     jsr IncrementScore
+                    jsr DrawScore
 
                 NoCollisionFound:
                     jmp NextActor
@@ -1093,8 +1095,6 @@ SetGameClock:
         lda #0
         sta Frame
     :
-
-    jsr DrawScore
 
 SetDrawComplete:
     lda #1
