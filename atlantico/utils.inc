@@ -32,3 +32,9 @@
     tax     
     pla     ; Restore the old value of A from the stack
 .endmacro
+
+.macro PPU_DISABLE_NMI
+    lda #0
+    sta PPU_CTRL
+    sta PPU_MASK
+.endmacro

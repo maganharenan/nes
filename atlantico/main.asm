@@ -4,6 +4,7 @@
 .include    "reset.inc"
 .include    "utils.inc"
 .include    "actor.inc"
+.include    "state.inc"
 ; ----------------------------------------------------------------------------------
 
 ; ---- ZERO-PAGE -------------------------------------------------------------------
@@ -55,10 +56,21 @@ ActorsArray:        .res MAX_ACTORS * .sizeof(Actor)
 
 Seed:               .res 2
 
+GameState:          .res 1
+
 ; ----------------------------------------------------------------------------------
 
 ; ---- CODE ------------------------------------------------------------------------
 .segment "CODE"
+
+; ==================================================================================
+; MARK: PROCEDURES
+; ==================================================================================
+.proc SwitchCHRBank
+    sta $8000
+
+    rts
+.endproc
 
 .proc IncrementScore
     Increment1sDigit:
@@ -729,160 +741,238 @@ EndRoutine:
     rts
 .endproc
 
+.proc LoadTitleScreen
+    lda #<TitleScreenData    
+    sta BgPointer
+    lda #>TitleScreenData 
+    sta BgPointer+1
+
+    PPU_SETADDR $2000 
+
+    ldx #$00  
+    ldy #$00 
+  OuterLoop:
+  InnerLoop:
+    lda (BgPointer),y 
+    sta PPU_DATA
+    iny                     
+    cpy #0
+    beq IncreaseHiByte      
+    jmp InnerLoop
+  IncreaseHiByte:
+    inc BgPointer+1
+    inx      
+    cpx #4
+    bne OuterLoop 
+    rts
+.endproc
+
+; ==================================================================================
+; MARK: GAME LOGIC
+; ==================================================================================
 Reset: 
     INIT_NES
 
-InitVariables:
-    lda #0
-    sta Frame
-    sta Clock60
-    sta CurrentNametable
-    sta Column
-    sta IsDrawComplete
-    lda #113
-    sta XPosition
-    lda #165
-    sta YPosition
+.proc TitleScreen
+    lda #1
+    jsr SwitchCHRBank
 
-    lda #$10
-    sta Seed+1
-    sta Seed+0
+    lda #State::TITLESCREEN
+    sta GameState
 
-Main:
     jsr LoadPalette
+    jsr LoadTitleScreen
 
-AddSprite0:
-    lda #ActorType::SPRITE0
-    sta ParamType
+    EnableNMI:
+        lda #%10010000
+        sta PPU_CTRL
+        lda #%00011110 
+        sta PPU_MASK
+
+    TitleScreenLoop:
+        jsr ReadControllers
+
+        CheckStartButton:
+            lda Buttons
+            and #BUTTON_START
+            beq :+
+                jmp GamePlay
+            :
+
+        WaitForVblank:
+            lda IsDrawComplete
+            beq WaitForVblank
+
+        lda #0
+        sta IsDrawComplete
+
+        jmp TitleScreenLoop
+.endproc
+
+.proc GamePlay
     lda #0
-    sta ParamXPos
-    lda #27
-    sta ParamYPos
-    jsr AddNewActor
+    jsr SwitchCHRBank
 
-AddPlayer:
-    lda #ActorType::PLAYER
-    sta ParamType
-    lda XPosition
-    sta ParamXPos
-    lda YPosition
-    sta ParamYPos
-    jsr AddNewActor
+    lda #State::PLAYING
+    sta GameState
 
-InitBackgroundTiles:
-    lda #1
-    sta CurrentNametable
-    lda #0
-    sta XScroll
-    sta Column
+    PPU_DISABLE_NMI
 
-InitBackgroundLoop:
-    jsr DrawNewColumn
+    InitVariables:
+        lda #0
+        sta Frame
+        sta Clock60
+        sta CurrentNametable
+        sta Column
+        sta IsDrawComplete
+        lda #113
+        sta XPosition
+        lda #165
+        sta YPosition
 
-    lda XScroll
-    clc
-    adc #8
-    sta XScroll
+        lda #$10
+        sta Seed+1
+        sta Seed+0
 
-    inc Column
+    Main:
+        jsr LoadPalette
 
-    lda Column
-    cmp #32
-    bne InitBackgroundLoop
+    AddSprite0:
+        lda #ActorType::SPRITE0
+        sta ParamType
+        lda #0
+        sta ParamXPos
+        lda #27
+        sta ParamYPos
+        jsr AddNewActor
 
-    lda #0
-    sta CurrentNametable
-    lda #1
-    sta XScroll
+    AddPlayer:
+        lda #ActorType::PLAYER
+        sta ParamType
+        lda XPosition
+        sta ParamXPos
+        lda YPosition
+        sta ParamYPos
+        jsr AddNewActor
 
-    jsr DrawNewColumn
-    inc Column
+    InitBackgroundTiles:
+        lda #1
+        sta CurrentNametable
+        lda #0
+        sta XScroll
+        sta Column
 
-    lda #%00000000
-    sta PPU_CTRL
+    InitBackgroundLoop:
+        jsr DrawNewColumn
 
-InitAttributes:
-    lda #1
-    sta CurrentNametable
-    lda #0
-    sta XScroll
-    sta Column
+        lda XScroll
+        clc
+        adc #8
+        sta XScroll
 
-InitAttributesLoop:
-    jsr DrawNewAttribute
-    lda XScroll
-    clc
-    adc #32
-    sta XScroll
+        inc Column
 
-    lda Column
-    clc
-    adc #4
-    sta Column
-    cmp #32
-    bne InitAttributesLoop
+        lda Column
+        cmp #32
+        bne InitBackgroundLoop
 
-    lda #0
-    sta CurrentNametable
-    lda #1
-    sta XScroll
-    jsr DrawNewAttribute
+        lda #0
+        sta CurrentNametable
+        lda #1
+        sta XScroll
 
-    inc Column
+        jsr DrawNewColumn
+        inc Column
 
-EnablePPURendering:
-    lda #%10010000
-    sta PPU_CTRL
-    lda #0
-    sta PPU_SCROLL
-    sta PPU_SCROLL
-    lda #%00011110
-    sta PPU_MASK
+        lda #%00000000
+        sta PPU_CTRL
 
-GameLoop:
-    lda Buttons
-    sta PreviousButtons
+    InitAttributes:
+        lda #1
+        sta CurrentNametable
+        lda #0
+        sta XScroll
+        sta Column
 
-    jsr ReadControllers
+    InitAttributesLoop:
+        jsr DrawNewAttribute
+        lda XScroll
+        clc
+        adc #32
+        sta XScroll
 
-    CheckAButton:
+        lda Column
+        clc
+        adc #4
+        sta Column
+        cmp #32
+        bne InitAttributesLoop
+
+        lda #0
+        sta CurrentNametable
+        lda #1
+        sta XScroll
+        jsr DrawNewAttribute
+
+        inc Column
+
+    EnablePPURendering:
+        lda #%10010000
+        sta PPU_CTRL
+        lda #0
+        sta PPU_SCROLL
+        sta PPU_SCROLL
+        lda #%00011110
+        sta PPU_MASK
+
+    GameLoop:
         lda Buttons
-        and #BUTTON_A
-        beq :+
+        sta PreviousButtons
+
+        jsr ReadControllers
+
+        CheckAButton:
             lda Buttons
             and #BUTTON_A
-            cmp PreviousButtons
             beq :+
-                lda #ActorType::MISSILE
-                sta ParamType
-                lda XPosition
-                sta ParamXPos
-                lda YPosition
-                sta ParamYPos
-                jsr AddNewActor
-        :
+                lda Buttons
+                and #BUTTON_A
+                cmp PreviousButtons
+                beq :+
+                    lda #ActorType::MISSILE
+                    sta ParamType
+                    lda XPosition
+                    sta ParamXPos
+                    lda YPosition
+                    sta ParamYPos
+                    jsr AddNewActor
+            :
 
-    CheckSelectButton:
-        lda Buttons
-        and #BUTTON_SELECT
-        beq :+
-            lda #1
-            sta $8000
-        :
+        CheckSelectButton:
+            lda Buttons
+            and #BUTTON_SELECT
+            beq :+
+                lda #1
+                sta $8000
+            :
 
-    jsr SpawnActors
-    jsr UpdateActors
-    jsr RenderActors
+        jsr SpawnActors
+        jsr UpdateActors
+        jsr RenderActors
 
-    WaitForVblank:
-        lda IsDrawComplete
-        beq WaitForVblank
+        WaitForVblank:
+            lda IsDrawComplete
+            beq WaitForVblank
 
-    lda #0
-    sta IsDrawComplete
+        lda #0
+        sta IsDrawComplete
 
-    jmp GameLoop
+        jmp GameLoop
+.endproc
 
+; ==================================================================================
+; MARK: NMI
+; ==================================================================================
 NMI:
     PUSH_REGISTERS
 
@@ -924,6 +1014,10 @@ BackgroundCopy:
     jmp BufferLoop
 
 EndBackgroundCopy:
+
+    lda GameState
+    cmp #State::PLAYING
+    bne EndScrolling
 
 NewColumnCheck:
     lda XScroll
@@ -981,6 +1075,8 @@ ScrollBackground:
     lda #0
     sta PPU_SCROLL    ; Disables Y Scroll
 
+EndScrolling:
+
 RefreshRendering:
     lda #%10010000
     ora CurrentNametable
@@ -1011,6 +1107,9 @@ SetDrawComplete:
 IRQ:
     rti   
 
+; ==================================================================================
+; MARK: ASSETS
+; ==================================================================================
 PaletteData:
 .byte $1C,$0F,$22,$1C, $1C,$37,$3D,$0F, $1C,$37,$3D,$30, $1C,$0F,$3D,$30 ; Background palette
 .byte $1C,$0F,$2D,$10, $1C,$0F,$20,$27, $1C,$2D,$38,$18, $1C,$0F,$1A,$32 ; Sprite palette
@@ -1185,15 +1284,17 @@ AttributeData:
 .byte $ff,$aa,$aa,$aa,$59,$00,$00,$00
 .byte $ff,$aa,$aa,$aa,$5a,$00,$00,$00
 
+TitleScreenData:
+.incbin     "titlescreen.nam"
+
 .segment "CHARS1"
 .incbin "atlantico.chr"
 
 .segment "CHARS2"
-.incbin "atlantico2.chr"
+.incbin "titlescreen.chr"
 
 ; ---- VECTORS ---------------------------------------------------------------------
 .segment "VECTORS"
-.org        $FFFA
 .word       NMI
 .word       Reset
 .word       IRQ
