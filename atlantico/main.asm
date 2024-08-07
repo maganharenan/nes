@@ -9,6 +9,8 @@
 
 ; ---- ZERO-PAGE -------------------------------------------------------------------
 .segment "ZEROPAGE"
+MenuItem:           .res 1
+
 Score:              .res 4
 
 Collision:          .res 1
@@ -32,6 +34,7 @@ IsDrawComplete:     .res 1
 BgPointer:          .res 2
 SpritePointer:      .res 2
 BufferPointer:      .res 2
+PalettePointer:     .res 2
 
 XScroll:            .res 1
 CurrentNametable:   .res 1
@@ -193,16 +196,47 @@ LoopButtons:
 .endproc
 
 .proc LoadPalette
-    PPU_SETADDR $3F00
-    ldy #0
-LoopPalette:
-    lda PaletteData, y
-    sta PPU_DATA
-    iny
-    cpy #32
-    bne LoopPalette
+    ldx MenuItem
 
-    rts
+    cpx #0
+    bne :+
+        lda #<PaletteDataClear
+        sta PalettePointer+0
+        lda #>PaletteDataClear
+        sta PalettePointer+1
+        jmp LoopPaletteBytes
+    :
+
+    cpx #1
+    bne :+
+        lda #<PaletteDataCloudy
+        sta PalettePointer+0
+        lda #>PaletteDataCloudy
+        sta PalettePointer+1
+        jmp LoopPaletteBytes
+    :
+
+    cpx #2
+    bne :+
+        lda #<PaletteDataNight
+        sta PalettePointer+0
+        lda #>PaletteDataNight
+        sta PalettePointer+1
+        jmp LoopPaletteBytes
+    :
+
+    LoopPaletteBytes:
+        PPU_SETADDR $3F00
+        ldy #0
+
+    LoopPalette:
+        lda (PalettePointer), y
+        sta PPU_DATA
+        iny
+        cpy #32
+        bne LoopPalette
+
+        rts
 .endproc
 
 .proc DrawNewColumn
@@ -769,6 +803,29 @@ EndRoutine:
     rts
 .endproc
 
+.proc DrawItemArrow
+    lda #$02
+    sta SpritePointer+1
+    lda #00
+    sta SpritePointer+0
+
+    lda #92
+    sta ParamYPos
+
+    lda #95
+    sta ParamXPos
+
+    lda #$23
+    sta ParamTileNumber
+
+    lda #1
+    sta ParamNumTiles
+
+    jsr DrawSprite
+
+    rts
+.endproc
+
 ; ==================================================================================
 ; MARK: GAME LOGIC
 ; ==================================================================================
@@ -782,8 +839,15 @@ Reset:
     lda #State::TITLESCREEN
     sta GameState
 
+    lda #1
+    sta MenuItem
+
     jsr LoadPalette
     jsr LoadTitleScreen
+    jsr DrawItemArrow
+
+    lda #0
+    sta MenuItem
 
     EnableNMI:
         lda #%10010000
@@ -792,6 +856,9 @@ Reset:
         sta PPU_MASK
 
     TitleScreenLoop:
+        lda Buttons
+        sta PreviousButtons
+
         jsr ReadControllers
 
         CheckStartButton:
@@ -799,6 +866,42 @@ Reset:
             and #BUTTON_START
             beq :+
                 jmp GamePlay
+            :
+        
+        CheckDownButton:
+            lda Buttons
+            and #BUTTON_DOWN
+            beq :+
+                lda Buttons
+                and #BUTTON_DOWN
+                cmp PreviousButtons
+                beq :+
+                    lda MenuItem
+                    cmp #2
+                    beq :+
+                        lda $0200
+                        clc
+                        adc #17
+                        sta $0200
+                        inc MenuItem
+            :
+
+        CheckUpButton:
+            lda Buttons
+            and #BUTTON_UP
+            beq :+
+                lda Buttons
+                and #BUTTON_UP
+                cmp PreviousButtons
+                beq :+
+                    lda MenuItem
+                    cmp #0
+                    beq :+
+                        lda $0200
+                        sec
+                        sbc #17
+                        sta $0200
+                        dec MenuItem
             :
 
         WaitForVblank:
@@ -948,14 +1051,6 @@ Reset:
                     lda YPosition
                     sta ParamYPos
                     jsr AddNewActor
-            :
-
-        CheckSelectButton:
-            lda Buttons
-            and #BUTTON_SELECT
-            beq :+
-                lda #1
-                sta $8000
             :
 
         jsr SpawnActors
@@ -1111,8 +1206,15 @@ IRQ:
 ; MARK: ASSETS
 ; ==================================================================================
 PaletteData:
+PaletteDataCloudy:
 .byte $1C,$0F,$22,$1C, $1C,$37,$3D,$0F, $1C,$37,$3D,$30, $1C,$0F,$3D,$30 ; Background palette
 .byte $1C,$0F,$2D,$10, $1C,$0F,$20,$27, $1C,$2D,$38,$18, $1C,$0F,$1A,$32 ; Sprite palette
+PaletteDataClear:
+.byte $1C,$0F,$22,$1C, $1C,$36,$21,$0B, $1C,$36,$21,$30, $1C,$0F,$3D,$30 ; Background palette
+.byte $1C,$0F,$2D,$10, $1C,$0F,$20,$27, $1C,$2D,$38,$18, $1C,$0F,$1A,$32 ; Sprite palette
+PaletteDataNight:
+.byte $0C,$0F,$1C,$0C, $0C,$26,$0C,$0F, $0C,$26,$0C,$2D, $0C,$36,$07,$2D ; Background palette
+.byte $0C,$0F,$1D,$2D, $0C,$0F,$20,$27, $0C,$2D,$38,$18, $0C,$0F,$1A,$21 ; Sprite palette
 
 BackgroundData:
 .byte $13,$13,$13,$13,$20,$21,$21,$21,$21,$21,$21,$21,$21,$21,$21,$21,$21,$21,$21,$23,$33,$15,$21,$12,$00,$31,$31,$31,$55,$56,$00,$00 ; ---> screen column 1 (from top to bottom)
@@ -1285,7 +1387,7 @@ AttributeData:
 .byte $ff,$aa,$aa,$aa,$5a,$00,$00,$00
 
 TitleScreenData:
-.incbin     "titlescreen.nam"
+.incbin "titlescreen.nam"
 
 .segment "CHARS1"
 .incbin "atlantico.chr"
