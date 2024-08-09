@@ -75,6 +75,47 @@ GameState:          .res 1
     rts
 .endproc
 
+.proc LoadTitleScreenRLE
+    lda #>TitleScreenData
+    sta BgPointer+1
+    lda #<TitleScreenData
+    sta BgPointer+0
+
+    PPU_SETADDR $2000
+
+    ldy #0
+
+    LengthLoop:
+        lda (BgPointer),y
+        beq EndRoutine
+        iny
+
+        cpy #0
+        bne :+
+            inc BgPointer+1
+        :
+
+        tax
+        lda (BgPointer),y
+        iny
+
+        cpy #0
+        bne :+
+            inc BgPointer+1
+        :
+
+        TileLoop:
+            sta PPU_DATA
+            dex
+            bne TileLoop
+
+        jmp LengthLoop
+
+    EndRoutine:
+        rts
+
+.endproc
+
 .proc IncrementScore
     Increment1sDigit:
         lda Score+0
@@ -777,60 +818,14 @@ EndRoutine:
     rts
 .endproc
 
-.proc LoadTitleScreen
-    lda #<TitleScreenData    
-    sta BgPointer
-    lda #>TitleScreenData 
-    sta BgPointer+1
-
-    PPU_SETADDR $2000 
-
-    ldx #$00  
-    ldy #$00 
-  OuterLoop:
-  InnerLoop:
-    lda (BgPointer),y 
-    sta PPU_DATA
-    iny                     
-    cpy #0
-    beq IncreaseHiByte      
-    jmp InnerLoop
-  IncreaseHiByte:
-    inc BgPointer+1
-    inx      
-    cpx #4
-    bne OuterLoop 
-    rts
-.endproc
-
-.proc DrawItemArrow
-    lda #$02
-    sta SpritePointer+1
-    lda #00
-    sta SpritePointer+0
-
-    lda #92
-    sta ParamYPos
-
-    lda #95
-    sta ParamXPos
-
-    lda #$23
-    sta ParamTileNumber
-
-    lda #1
-    sta ParamNumTiles
-
-    jsr DrawSprite
-
-    rts
-.endproc
-
 ; ==================================================================================
 ; MARK: GAME LOGIC
 ; ==================================================================================
 Reset: 
     INIT_NES
+
+    lda #%00000001
+    sta APU_FLAGS
 
 .proc TitleScreen
     lda #1
@@ -843,8 +838,17 @@ Reset:
     sta MenuItem
 
     jsr LoadPalette
-    jsr LoadTitleScreen
-    jsr DrawItemArrow
+    jsr LoadTitleScreenRLE
+    
+    DrawMenuArrow:
+        lda #92
+        sta $0200
+        lda #$23
+        sta $0201
+        lda #%00000001  
+        sta $0202
+        lda #95   
+        sta $0203
 
     lda #0
     sta MenuItem
@@ -1205,7 +1209,6 @@ IRQ:
 ; ==================================================================================
 ; MARK: ASSETS
 ; ==================================================================================
-PaletteData:
 PaletteDataCloudy:
 .byte $1C,$0F,$22,$1C, $1C,$37,$3D,$0F, $1C,$37,$3D,$30, $1C,$0F,$3D,$30 ; Background palette
 .byte $1C,$0F,$2D,$10, $1C,$0F,$20,$27, $1C,$2D,$38,$18, $1C,$0F,$1A,$32 ; Sprite palette
@@ -1387,7 +1390,7 @@ AttributeData:
 .byte $ff,$aa,$aa,$aa,$5a,$00,$00,$00
 
 TitleScreenData:
-.incbin "titlescreen.nam"
+.incbin "titlescreen.rle"
 
 .segment "CHARS1"
 .incbin "atlantico.chr"

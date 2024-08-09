@@ -1,0 +1,1 @@
+ld65 -C /Users/renanmaganha/Study/programming/nes/animatedsprite/memory_map.cfg           CMakeFiles/AnimatedSprite.dir/assets/assets.asm.o CMakeFiles/AnimatedSprite.dir/src/main.asm.o CMakeFiles/AnimatedSprite.dir/src/common/vectors.asm.o           -o AnimatedSprite.nes
