@@ -827,6 +827,14 @@ Reset:
     lda #%00000001
     sta APU_FLAGS
 
+    lda #%10111111
+    sta $4000
+
+    lda #$C9
+    sta $4002
+    lda #$00
+    sta $4003
+
 .proc TitleScreen
     lda #1
     jsr SwitchCHRBank
