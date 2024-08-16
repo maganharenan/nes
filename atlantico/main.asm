@@ -65,7 +65,28 @@ GameState:          .res 1
 
 ; ---- CODE ------------------------------------------------------------------------
 .segment "CODE"
+; ==================================================================================
+; MARK: FamiStudio audio engine configuration
+; ==================================================================================
+.define FAMISTUDIO_CA65_ZP_SEGMENT   ZEROPAGE
+.define FAMISTUDIO_CA65_RAM_SEGMENT  RAM
+.define FAMISTUDIO_CA65_CODE_SEGMENT CODE
 
+FAMISTUDIO_CFG_EXTERNAL       = 1
+FAMISTUDIO_CFG_DPCM_SUPPORT   = 1
+FAMISTUDIO_CFG_SFX_SUPPORT    = 1
+FAMISTUDIO_CFG_SFX_STREAMS    = 2
+FAMISTUDIO_CFG_EQUALIZER      = 1
+FAMISTUDIO_USE_VOLUME_TRACK   = 1
+FAMISTUDIO_USE_PITCH_TRACK    = 1
+FAMISTUDIO_USE_SLIDE_NOTES    = 1
+FAMISTUDIO_USE_VIBRATO        = 1
+FAMISTUDIO_USE_ARPEGGIO       = 1
+FAMISTUDIO_CFG_SMOOTH_VIBRATO = 1
+FAMISTUDIO_USE_RELEASE_NOTES  = 1
+FAMISTUDIO_DPCM_OFF           = $E000
+
+.include "audioengine.asm"
 ; ==================================================================================
 ; MARK: PROCEDURES
 ; ==================================================================================
@@ -828,12 +849,12 @@ Reset:
     sta APU_FLAGS
 
     lda #%10111111
-    sta $4000
+    sta SQ1_ENV
 
     lda #$C9
-    sta $4002
+    sta SQ1_LO
     lda #$00
-    sta $4003
+    sta SQ1_HI
 
 .proc TitleScreen
     lda #1
@@ -847,6 +868,17 @@ Reset:
 
     jsr LoadPalette
     jsr LoadTitleScreenRLE
+
+    AudioEngineInit:
+        ldx #<music_data_gameboy_tetris
+        ldy #>music_data_gameboy_tetris
+
+        lda #1
+
+        jsr famistudio_init
+
+        lda #0
+        jsr famistudio_music_play 
     
     DrawMenuArrow:
         lda #92
@@ -868,6 +900,8 @@ Reset:
         sta PPU_MASK
 
     TitleScreenLoop:
+        jsr famistudio_update
+
         lda Buttons
         sta PreviousButtons
 
@@ -1399,6 +1433,9 @@ AttributeData:
 
 TitleScreenData:
 .incbin "titlescreen.rle"
+
+MusicData:
+.include "music/tetris.asm"
 
 .segment "CHARS1"
 .incbin "atlantico.chr"
