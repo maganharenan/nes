@@ -922,9 +922,8 @@ Reset:
             lda Buttons
             and #BUTTON_DOWN
             beq :+
-                lda Buttons
-                and #BUTTON_DOWN
-                cmp PreviousButtons
+                lda PreviousButtons
+                cmp Buttons
                 beq :+
                     lda MenuItem
                     cmp #2
@@ -940,9 +939,8 @@ Reset:
             lda Buttons
             and #BUTTON_UP
             beq :+
-                lda Buttons
-                and #BUTTON_UP
-                cmp PreviousButtons
+                lda PreviousButtons
+                cmp Buttons
                 beq :+
                     lda MenuItem
                     cmp #0
@@ -1109,9 +1107,8 @@ Reset:
             lda Buttons
             and #BUTTON_A
             beq :+
-                lda Buttons
-                and #BUTTON_A
-                cmp PreviousButtons
+                lda PreviousButtons
+                cmp Buttons
                 beq :+
                     lda #ActorType::MISSILE
                     sta ParamType
