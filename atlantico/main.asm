@@ -624,6 +624,10 @@ EndRoutine:
                     lda #ActorType::NULL
                     sta ActorsArray+Actor::Type,x
 
+                    lda #1
+                    ldx FAMISTUDIO_SFX_CH0
+                    jsr famistudio_sfx_play
+
                     jsr IncrementScore
                     jsr DrawScore
 
@@ -870,8 +874,8 @@ Reset:
     jsr LoadTitleScreenRLE
 
     AudioEngineInit:
-        ldx #<music_data_gameboy_tetris
-        ldy #>music_data_gameboy_tetris
+        ldx #<music_data_titan
+        ldy #>music_data_titan
 
         lda #1
 
@@ -985,6 +989,23 @@ Reset:
         sta Seed+1
         sta Seed+0
 
+        jsr famistudio_music_stop
+
+        AudioEngineInit:
+            ldx #<music_data_maritime
+            ldy #>music_data_maritime
+
+            lda #1
+
+            jsr famistudio_init
+
+            lda #0
+            jsr famistudio_music_play 
+
+            ldx #<sounds
+            ldy #>sounds
+            jsr famistudio_sfx_init
+
     Main:
         jsr LoadPalette
 
@@ -1077,6 +1098,8 @@ Reset:
         sta PPU_MASK
 
     GameLoop:
+        jsr famistudio_update
+
         lda Buttons
         sta PreviousButtons
 
@@ -1097,6 +1120,10 @@ Reset:
                     lda YPosition
                     sta ParamYPos
                     jsr AddNewActor
+
+                    lda #0
+                    ldx #FAMISTUDIO_SFX_CH0
+                    jsr famistudio_sfx_play
             :
 
         jsr SpawnActors
@@ -1435,7 +1462,11 @@ TitleScreenData:
 .incbin "titlescreen.rle"
 
 MusicData:
-.include "music/tetris.asm"
+.include "music/titan.asm"
+.include "music/maritime.asm"
+
+SoundFXData:
+.include "sfx/sounds.asm"
 
 .segment "CHARS1"
 .incbin "atlantico.chr"
