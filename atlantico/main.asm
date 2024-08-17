@@ -179,7 +179,7 @@ FAMISTUDIO_DPCM_OFF           = $E000
 .endproc
 
 .proc DrawScore
-    lda #$70
+    lda #$07
     sta BufferPointer+1
     lda #$00
     sta BufferPointer+0
@@ -1150,7 +1150,7 @@ OAMDMACopy:
     sta PPU_OAM_DMA
 
 BackgroundCopy:
-    lda #$70
+    lda #$07
     sta BufferPointer+1
     lda #$00
     sta BufferPointer+0
