@@ -16,4 +16,5 @@
     Type        .byte
     XPosition   .byte
     YPosition   .byte
+    Screen      .byte
 .endstruct

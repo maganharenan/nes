@@ -52,6 +52,7 @@ ParamRectX1:        .res 1
 ParamRectY1:        .res 1
 ParamRectX2:        .res 1
 ParamRectY2:        .res 1
+ParamScreen:        .res 1
 
 PreviousOAMCount:   .res 1
 
@@ -453,6 +454,16 @@ LoopButtons:
         sta ActorsArray+Actor::XPosition,x
         lda ParamYPos
         sta ActorsArray+Actor::YPosition,x
+        lda #0
+        sta ActorsArray+Actor::Screen,x
+
+        lda ParamType
+        cmp #ActorType::MISSILE
+        bne :+
+            lda #0
+            ldx #FAMISTUDIO_SFX_CH0
+            jsr famistudio_sfx_play
+        :
             
 EndRoutine:
     rts
@@ -466,13 +477,13 @@ EndRoutine:
     bne :+
         lda #ActorType::SUBMARINE
         sta ParamType
-        lda #223
+        lda #255
         sta ParamXPos
         jsr GetRandomNumber
         lsr
         lsr
         lsr
-        adc #185
+        adc #180
         sta ParamYPos
 
         jsr AddNewActor
@@ -487,7 +498,7 @@ EndRoutine:
     bne :+
         lda #ActorType::AIRPLANE
         sta ParamType
-        lda #223
+        lda #255
         sta ParamXPos
 
         jsr GetRandomNumber
@@ -624,12 +635,14 @@ EndRoutine:
                     lda #ActorType::NULL
                     sta ActorsArray+Actor::Type,x
 
-                    lda #1
-                    ldx FAMISTUDIO_SFX_CH0
-                    jsr famistudio_sfx_play
-
                     jsr IncrementScore
                     jsr DrawScore
+
+                    PUSH_REGISTERS
+                    lda #1
+                    ldx #FAMISTUDIO_SFX_CH0
+                    jsr famistudio_sfx_play
+                    PULL_REGISTERS
 
                 NoCollisionFound:
                     jmp NextActor
@@ -640,12 +653,22 @@ EndRoutine:
             sec
             sbc #1
             sta ActorsArray+Actor::XPosition,x
-            bcs SkipSubmarine
+
+            lda ActorsArray+Actor::Screen,x
+            sbc #0
+            sta ActorsArray+Actor::Screen,x
+
+            cmp #$FF
+            bne SkipSubmarine
+
+            lda ActorsArray+Actor::XPosition,x
+            cmp #$E0
+            bne SkipSubmarine
                 lda #ActorType::NULL
                 sta ActorsArray+Actor::Type,x
 
             SkipSubmarine:
-            jmp NextActor
+                jmp NextActor
         :
         cmp #ActorType::AIRPLANE
         bne :+
@@ -653,12 +676,22 @@ EndRoutine:
             sec
             sbc #1
             sta ActorsArray+Actor::XPosition,x
-            bcs SkipAirplane
+
+            lda ActorsArray+Actor::Screen,x
+            sbc #0
+            sta ActorsArray+Actor::Screen,x
+
+            cmp #$FF
+            bne SkipAirplane
+
+            lda ActorsArray+Actor::XPosition,x
+            cmp #$E0
+            bne SkipAirplane
                 lda #ActorType::NULL
                 sta ActorsArray+Actor::Type,x
 
             SkipAirplane:
-            jmp NextActor
+                jmp NextActor
         :
 
         NextActor:
@@ -667,7 +700,9 @@ EndRoutine:
             adc #.sizeof(Actor)
             tax
             cmp #MAX_ACTORS * .sizeof(Actor)
-            bne ActorsLoop
+            beq :+
+                jmp ActorsLoop
+            :
 
     rts
 .endproc
@@ -681,6 +716,9 @@ EndRoutine:
     ldy #0
     ldx #0
     ActorsLoop:
+        lda ActorsArray+Actor::Screen,x
+        sta ParamScreen
+
         lda ActorsArray+Actor::Type,x
 
         cmp #ActorType::PLAYER
@@ -812,30 +850,51 @@ EndRoutine:
     ldx #0
 
     TileLoop:
-        lda ParamYPos
-        sta (SpritePointer), y
-        iny
+        lda ParamScreen
+        bne SkipTile
 
-        lda ParamTileNumber
-        sta (SpritePointer), y
-        inc ParamTileNumber
-        iny
+            lda ParamYPos
+            sta (SpritePointer), y
+            iny
 
-        lda ParamAttributes
-        sta (SpritePointer), y
-        iny
+            lda ParamTileNumber
+            sta (SpritePointer), y
+            inc ParamTileNumber
+            iny
 
-        lda ParamXPos
-        sta (SpritePointer), y
-        clc
-        adc #8
-        sta ParamXPos
+            lda ParamAttributes
+            sta (SpritePointer), y
+            iny
 
-        iny
+            lda ParamXPos
+            sta (SpritePointer), y
+            clc
+            adc #8
+            sta ParamXPos
 
-        inx
-        cpx ParamNumTiles
-        bne TileLoop
+            lda ParamScreen
+            adc #0
+            sta ParamScreen
+
+            iny
+
+            jmp NextTile
+
+        SkipTile:
+            lda ParamXPos
+            clc
+            adc #8
+            sta ParamXPos
+
+            lda ParamScreen
+            adc #0
+            sta ParamScreen
+            inc ParamTileNumber
+
+        NextTile:
+            inx
+            cpx ParamNumTiles
+            bne TileLoop
 
     pla
     tax
@@ -1117,10 +1176,6 @@ Reset:
                     lda YPosition
                     sta ParamYPos
                     jsr AddNewActor
-
-                    lda #0
-                    ldx #FAMISTUDIO_SFX_CH0
-                    jsr famistudio_sfx_play
             :
 
         jsr SpawnActors
